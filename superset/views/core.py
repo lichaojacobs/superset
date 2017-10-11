@@ -142,18 +142,22 @@ class DashboardFilter(SupersetFilter):
         Slice = models.Slice  # noqa
         Dash = models.Dashboard  # noqa
         # TODO(bogdan): add `schema_access` support here
-        datasource_perms = self.get_view_menus('datasource_access')
-        slice_ids_qry = (
-            db.session
-            .query(Slice.id)
-            .filter(Slice.perm.in_(datasource_perms))
-        )
+        #datasource_perms = self.get_view_menus('datasource_access')
+        datasource_perms = self.get_view_menus('database_access')
+        database_perms = list(set([perm.split('.')[0] for perm in datasource_perms]))
+        # slice_ids_qry = (
+        #     db.session
+        #     .query(Slice.id)
+        #     .filter(Slice.perm.in_(datasource_perms))
+        # )
+        slices = db.session.query(Slice).all()
+        slice_ids = [slice_model.id for slice_model in slices if slice_model.perm.split('.')[0] in database_perms]
         query = query.filter(
             Dash.id.in_(
                 db.session.query(Dash.id)
                 .distinct()
                 .join(Dash.slices)
-                .filter(Slice.id.in_(slice_ids_qry))
+                .filter(Slice.id.in_(slice_ids))
             )
         )
         return query

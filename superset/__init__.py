@@ -19,6 +19,9 @@ from werkzeug.contrib.fixers import ProxyFix
 
 from superset.connectors.connector_registry import ConnectorRegistry
 from superset import utils, config  # noqa
+from flask import jsonify
+import pymysql
+pymysql.install_as_MySQLdb()
 
 APP_DIR = os.path.dirname(__file__)
 CONFIG_MODULE = os.environ.get('SUPERSET_CONFIG', 'superset.config')
@@ -143,7 +146,9 @@ class MyIndexView(IndexView):
     @expose('/')
     def index(self):
         return redirect('/superset/welcome')
-
+    @expose('/status')
+    def status(self):
+        return jsonify(status='ok')
 
 appbuilder = AppBuilder(
     app,
