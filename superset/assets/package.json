@@ -40,6 +40,7 @@
   "homepage": "http://superset.apache.org/",
   "dependencies": {
     "@data-ui/event-flow": "0.0.8",
+    "@mapbox/geojson-area": "github:mapbox/geojson-area",
     "@data-ui/sparkline": "0.0.1",
     "babel-register": "^6.24.1",
     "bootstrap": "^3.3.6",
@@ -54,6 +55,7 @@
     "d3-tip": "^0.6.7",
     "datamaps": "^0.5.8",
     "datatables.net-bs": "^1.10.15",
+    "dom-walk": "^0.1.1",
     "distributions": "^1.0.0",
     "immutable": "^3.8.2",
     "jed": "^1.1.1",
@@ -109,6 +111,7 @@
     "clean-webpack-plugin": "^0.1.16",
     "codeclimate-test-reporter": "^0.5.0",
     "css-loader": "^0.28.0",
+    "empty-module": "0.0.2",
     "enzyme": "^2.0.0",
     "eslint": "^3.19.0",
     "eslint-config-airbnb": "^15.0.1",

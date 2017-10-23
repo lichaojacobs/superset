@@ -16,7 +16,7 @@ import sys
 from collections import OrderedDict
 
 from dateutil import tz
-from flask_appbuilder.security.manager import AUTH_DB
+from flask_appbuilder.security.manager import AUTH_OID, AUTH_REMOTE_USER, AUTH_DB, AUTH_LDAP, AUTH_OAUTH
 
 from superset.stats_logger import DummyStatsLogger
 
@@ -41,7 +41,7 @@ with open(PACKAGE_FILE) as package_file:
 
 ROW_LIMIT = 50000
 VIZ_ROW_LIMIT = 10000
-SUPERSET_WORKERS = 2
+SUPERSET_WORKERS = 10
 SUPERSET_CELERY_WORKERS = 32
 
 SUPERSET_WEBSERVER_ADDRESS = '0.0.0.0'
@@ -56,7 +56,7 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 SECRET_KEY = '\2\1thisismyscretkey\1\2\e\y\y\h'  # noqa
 
 # The SQLAlchemy connection string.
-SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(DATA_DIR, 'superset.db')
+SQLALCHEMY_DATABASE_URI = 'mysql://superset:WcSEIFNB5RBTUkdN@rds2imyvu7fa3ev1365761781569.mysql.rds.aliyuncs.com/superset'
 # SQLALCHEMY_DATABASE_URI = 'mysql://myapp@localhost/myapp'
 # SQLALCHEMY_DATABASE_URI = 'postgresql://root:password@localhost/myapp'
 
@@ -92,7 +92,7 @@ ENABLE_PROXY_FIX = False
 # GLOBALS FOR APP Builder
 # ------------------------------
 # Uncomment to setup Your App name
-APP_NAME = "Superset"
+APP_NAME = "Mobvoi Analytics"
 
 # Uncomment to setup an App icon
 APP_ICON = "/static/assets/images/superset-logo@2x.png"
@@ -116,7 +116,17 @@ DRUID_ANALYSIS_TYPES = ['cardinality']
 # AUTH_DB : Is for database (username/password()
 # AUTH_LDAP : Is for LDAP
 # AUTH_REMOTE_USER : Is for using REMOTE_USER from web server
-AUTH_TYPE = AUTH_DB
+# AUTH_TYPE = AUTH_DB
+
+AUTH_TYPE = 2
+AUTH_LDAP_SERVER = "ldap://ldap.mobvoi.com"
+AUTH_LDAP_BIND_USER = "cn=admin,dc=ldap,dc=mobvoi,dc=com"
+AUTH_LDAP_USE_TLS = False
+AUTH_LDAP_SEARCH = "ou=users,dc=ldap,dc=mobvoi,dc=com"
+AUTH_LDAP_BIND_PASSWORD = "Mobvoi!297"
+AUTH_LDAP_UID_FIELD = "uid"
+AUTH_USER_REGISTRATION = True
+AUTH_USER_REGISTRATION_ROLE = "Staff"
 
 # Uncomment to setup Full admin role name
 # AUTH_ROLE_ADMIN = 'Admin'
@@ -128,7 +138,7 @@ AUTH_TYPE = AUTH_DB
 # AUTH_USER_REGISTRATION = True
 
 # The default user self registration role
-# AUTH_USER_REGISTRATION_ROLE = "Public"
+AUTH_USER_REGISTRATION_ROLE = "Dashboard Readonly"
 
 # When using LDAP Auth, setup the ldap server
 # AUTH_LDAP_SERVER = "ldap://ldapserver.new"
@@ -158,8 +168,6 @@ BABEL_DEFAULT_FOLDER = 'babel/translations'
 # The allowed translation for you app
 LANGUAGES = {
     'en': {'flag': 'us', 'name': 'English'},
-    'it': {'flag': 'it', 'name': 'Italian'},
-    'fr': {'flag': 'fr', 'name': 'French'},
     'zh': {'flag': 'cn', 'name': 'Chinese'},
 }
 # ---------------------------------------------------
@@ -176,9 +184,18 @@ IMG_UPLOAD_URL = '/static/uploads/'
 # Setup image size default is (300, 200, True)
 # IMG_SIZE = (300, 200, True)
 
-CACHE_DEFAULT_TIMEOUT = 60 * 60 * 24
 CACHE_CONFIG = {'CACHE_TYPE': 'null'}
 TABLE_NAMES_CACHE_CONFIG = {'CACHE_TYPE': 'null'}
+CACHE_DEFAULT_TIMEOUT = 7200
+CACHE_CONFIG = {
+    'CACHE_TYPE': 'redis',
+    'CACHE_DEFAULT_TIMEOUT': 7200,
+    'CACHE_KEY_PREFIX': 'superset_',
+    'CACHE_REDIS_HOST': 'r-bp1ff926df1a7bd4.redis.rds.aliyuncs.com',
+    'CACHE_REDIS_PORT': 6379,
+    'CACHE_REDIS_DB': '',
+    'CACHE_REDIS_PASSWORD': 'igTuujYzZSSVd75X'
+}
 
 # CORS Options
 ENABLE_CORS = False
@@ -237,7 +254,7 @@ INTERVAL = 1
 BACKUP_COUNT = 30
 
 # Set this API key to enable Mapbox visualizations
-MAPBOX_API_KEY = ""
+MAPBOX_API_KEY = "pk.eyJ1Ijoid3RoYW8iLCJhIjoiY2o0ZHdwano5MG96ODJ3bzJieHJ5MXBodSJ9.8ZBbKUOQw-RNe_j_QRm9Eg"
 
 # Maximum number of rows returned in the SQL editor
 SQL_MAX_ROW = 1000000
@@ -306,7 +323,6 @@ ROBOT_PERMISSION_ROLES = ['Public', 'Gamma', 'Alpha', 'Admin', 'sql_lab']
 
 CONFIG_PATH_ENV_VAR = 'SUPERSET_CONFIG_PATH'
 
-
 # smtp server configuration
 EMAIL_NOTIFICATIONS = False  # all the emails are sent using dryrun
 SMTP_HOST = 'localhost'
@@ -324,7 +340,6 @@ if not CACHE_DEFAULT_TIMEOUT:
 # Set to False if/when debugging FAB related issues like
 # permission management
 SILENCE_FAB = True
-
 
 # Integrate external Blueprints to the app by passing them to your
 # configuration. These blueprints will get integrated in the app
@@ -350,6 +365,7 @@ try:
     else:
         from superset_config import *  # noqa
         import superset_config
+
         print('Loaded your LOCAL configuration at [{}]'.format(
             superset_config.__file__))
 except ImportError:

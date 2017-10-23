@@ -1,0 +1,360 @@
+From e3e51eb450245a311a9e6cb215d553c871da7022 Mon Sep 17 00:00:00 2001
+From: lichao <chaoli@mobvoi.com>
+Date: Wed, 11 Oct 2017 17:28:08 +0800
+Subject: [PATCH 1/2] superset custom
+
+---
+ superset/__init__.py                               |  7 +++-
+ superset/assets/js_build.sh                        |  4 +--
+ superset/assets/package.json                       |  2 ++
+ superset/assets/stylesheets/superset.less          | 11 ++++++
+ superset/config.py                                 | 40 +++++++++++++++-------
+ superset/templates/appbuilder/navbar.html          | 15 --------
+ .../templates/superset/partials/_script_tag.html   | 12 +++++++
+ superset/views/core.py                             | 18 ++++++----
+ 8 files changed, 72 insertions(+), 37 deletions(-)
+
+diff --git a/superset/__init__.py b/superset/__init__.py
+index 6988e6b5..99e53433 100644
+--- a/superset/__init__.py
++++ b/superset/__init__.py
+@@ -19,6 +19,9 @@ from werkzeug.contrib.fixers import ProxyFix
+ 
+ from superset.connectors.connector_registry import ConnectorRegistry
+ from superset import utils, config  # noqa
++from flask import jsonify
++import pymysql
++pymysql.install_as_MySQLdb()
+ 
+ APP_DIR = os.path.dirname(__file__)
+ CONFIG_MODULE = os.environ.get('SUPERSET_CONFIG', 'superset.config')
+@@ -143,7 +146,9 @@ class MyIndexView(IndexView):
+     @expose('/')
+     def index(self):
+         return redirect('/superset/welcome')
+-
++    @expose('/status')
++    def status(self):
++        return jsonify(status='ok')
+ 
+ appbuilder = AppBuilder(
+     app,
+diff --git a/superset/assets/js_build.sh b/superset/assets/js_build.sh
+index c7173988..28065bde 100755
+--- a/superset/assets/js_build.sh
++++ b/superset/assets/js_build.sh
+@@ -6,7 +6,7 @@ node --version
+ npm install -g yarn
+ yarn
+ npm run lint
+-npm run test
++#npm run test
+ npm run build
+-npm run cover
++#npm run cover
+ CODECLIMATE_REPO_TOKEN=ded6121d25d593a1c5aee9f26d85717b19df058f7408cef26910aa731aa7cc3f ./node_modules/.bin/codeclimate-test-reporter < ./coverage/lcov.info
+diff --git a/superset/assets/package.json b/superset/assets/package.json
+index d214d211..c34909c5 100644
+--- a/superset/assets/package.json
++++ b/superset/assets/package.json
+@@ -40,6 +40,7 @@
+   "homepage": "http://superset.apache.org/",
+   "dependencies": {
+     "@data-ui/event-flow": "0.0.8",
++    "@mapbox/geojson-area": "github:mapbox/geojson-area",
+     "@data-ui/sparkline": "0.0.1",
+     "babel-register": "^6.24.1",
+     "bootstrap": "^3.3.6",
+@@ -54,6 +55,7 @@
+     "d3-tip": "^0.6.7",
+     "datamaps": "^0.5.8",
+     "datatables.net-bs": "^1.10.15",
++    "dom-walk": "^0.1.1",
+     "distributions": "^1.0.0",
+     "immutable": "^3.8.2",
+     "jed": "^1.1.1",
+diff --git a/superset/assets/stylesheets/superset.less b/superset/assets/stylesheets/superset.less
+index 78f26bb6..0498f636 100644
+--- a/superset/assets/stylesheets/superset.less
++++ b/superset/assets/stylesheets/superset.less
+@@ -5,6 +5,17 @@ body {
+     margin: 0px !important;
+ }
+ 
++.navbar-header {
++    padding-left: 10px;
++}
++.navbar-brand {
++  background: url('http://www.chumenwenwen.com/img/nlogo.svg');
++}
++.navbar-brand > img {
++    visibility: hidden;
++}
++
++
+ .caret {
+     border-top: 4px solid;
+ }
+diff --git a/superset/config.py b/superset/config.py
+index f934e3ad..4a3d0605 100644
+--- a/superset/config.py
++++ b/superset/config.py
+@@ -16,7 +16,7 @@ import sys
+ from collections import OrderedDict
+ 
+ from dateutil import tz
+-from flask_appbuilder.security.manager import AUTH_DB
++from flask_appbuilder.security.manager import AUTH_OID, AUTH_REMOTE_USER, AUTH_DB, AUTH_LDAP, AUTH_OAUTH
+ 
+ from superset.stats_logger import DummyStatsLogger
+ 
+@@ -41,7 +41,7 @@ with open(PACKAGE_FILE) as package_file:
+ 
+ ROW_LIMIT = 50000
+ VIZ_ROW_LIMIT = 10000
+-SUPERSET_WORKERS = 2
++SUPERSET_WORKERS = 10
+ SUPERSET_CELERY_WORKERS = 32
+ 
+ SUPERSET_WEBSERVER_ADDRESS = '0.0.0.0'
+@@ -56,7 +56,7 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
+ SECRET_KEY = '\2\1thisismyscretkey\1\2\e\y\y\h'  # noqa
+ 
+ # The SQLAlchemy connection string.
+-SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(DATA_DIR, 'superset.db')
++SQLALCHEMY_DATABASE_URI = 'mysql://superset:WcSEIFNB5RBTUkdN@rds2imyvu7fa3ev1365761781569.mysql.rds.aliyuncs.com/superset'
+ # SQLALCHEMY_DATABASE_URI = 'mysql://myapp@localhost/myapp'
+ # SQLALCHEMY_DATABASE_URI = 'postgresql://root:password@localhost/myapp'
+ 
+@@ -92,7 +92,7 @@ ENABLE_PROXY_FIX = False
+ # GLOBALS FOR APP Builder
+ # ------------------------------
+ # Uncomment to setup Your App name
+-APP_NAME = "Superset"
++APP_NAME = "Mobvoi Analytics"
+ 
+ # Uncomment to setup an App icon
+ APP_ICON = "/static/assets/images/superset-logo@2x.png"
+@@ -116,7 +116,17 @@ DRUID_ANALYSIS_TYPES = ['cardinality']
+ # AUTH_DB : Is for database (username/password()
+ # AUTH_LDAP : Is for LDAP
+ # AUTH_REMOTE_USER : Is for using REMOTE_USER from web server
+-AUTH_TYPE = AUTH_DB
++# AUTH_TYPE = AUTH_DB
++
++AUTH_TYPE = 2
++AUTH_LDAP_SERVER = "ldap://ldap.mobvoi.com"
++AUTH_LDAP_BIND_USER = "cn=admin,dc=ldap,dc=mobvoi,dc=com"
++AUTH_LDAP_USE_TLS = False
++AUTH_LDAP_SEARCH = "ou=users,dc=ldap,dc=mobvoi,dc=com"
++AUTH_LDAP_BIND_PASSWORD = "Mobvoi!297"
++AUTH_LDAP_UID_FIELD = "uid"
++AUTH_USER_REGISTRATION = True
++AUTH_USER_REGISTRATION_ROLE = "Staff"
+ 
+ # Uncomment to setup Full admin role name
+ # AUTH_ROLE_ADMIN = 'Admin'
+@@ -128,7 +138,7 @@ AUTH_TYPE = AUTH_DB
+ # AUTH_USER_REGISTRATION = True
+ 
+ # The default user self registration role
+-# AUTH_USER_REGISTRATION_ROLE = "Public"
++AUTH_USER_REGISTRATION_ROLE = "Dashboard Readonly"
+ 
+ # When using LDAP Auth, setup the ldap server
+ # AUTH_LDAP_SERVER = "ldap://ldapserver.new"
+@@ -158,8 +168,6 @@ BABEL_DEFAULT_FOLDER = 'babel/translations'
+ # The allowed translation for you app
+ LANGUAGES = {
+     'en': {'flag': 'us', 'name': 'English'},
+-    'it': {'flag': 'it', 'name': 'Italian'},
+-    'fr': {'flag': 'fr', 'name': 'French'},
+     'zh': {'flag': 'cn', 'name': 'Chinese'},
+ }
+ # ---------------------------------------------------
+@@ -176,9 +184,18 @@ IMG_UPLOAD_URL = '/static/uploads/'
+ # Setup image size default is (300, 200, True)
+ # IMG_SIZE = (300, 200, True)
+ 
+-CACHE_DEFAULT_TIMEOUT = 60 * 60 * 24
+ CACHE_CONFIG = {'CACHE_TYPE': 'null'}
+ TABLE_NAMES_CACHE_CONFIG = {'CACHE_TYPE': 'null'}
++CACHE_DEFAULT_TIMEOUT = 7200
++CACHE_CONFIG = {
++    'CACHE_TYPE': 'redis',
++    'CACHE_DEFAULT_TIMEOUT': 7200,
++    'CACHE_KEY_PREFIX': 'superset_',
++    'CACHE_REDIS_HOST': 'r-bp1ff926df1a7bd4.redis.rds.aliyuncs.com',
++    'CACHE_REDIS_PORT': 6379,
++    'CACHE_REDIS_DB': '',
++    'CACHE_REDIS_PASSWORD': 'igTuujYzZSSVd75X'
++}
+ 
+ # CORS Options
+ ENABLE_CORS = False
+@@ -237,7 +254,7 @@ INTERVAL = 1
+ BACKUP_COUNT = 30
+ 
+ # Set this API key to enable Mapbox visualizations
+-MAPBOX_API_KEY = ""
++MAPBOX_API_KEY = "pk.eyJ1Ijoid3RoYW8iLCJhIjoiY2o0ZHdwano5MG96ODJ3bzJieHJ5MXBodSJ9.8ZBbKUOQw-RNe_j_QRm9Eg"
+ 
+ # Maximum number of rows returned in the SQL editor
+ SQL_MAX_ROW = 1000000
+@@ -306,7 +323,6 @@ ROBOT_PERMISSION_ROLES = ['Public', 'Gamma', 'Alpha', 'Admin', 'sql_lab']
+ 
+ CONFIG_PATH_ENV_VAR = 'SUPERSET_CONFIG_PATH'
+ 
+-
+ # smtp server configuration
+ EMAIL_NOTIFICATIONS = False  # all the emails are sent using dryrun
+ SMTP_HOST = 'localhost'
+@@ -325,7 +341,6 @@ if not CACHE_DEFAULT_TIMEOUT:
+ # permission management
+ SILENCE_FAB = True
+ 
+-
+ # Integrate external Blueprints to the app by passing them to your
+ # configuration. These blueprints will get integrated in the app
+ BLUEPRINTS = []
+@@ -350,6 +365,7 @@ try:
+     else:
+         from superset_config import *  # noqa
+         import superset_config
++
+         print('Loaded your LOCAL configuration at [{}]'.format(
+             superset_config.__file__))
+ except ImportError:
+diff --git a/superset/templates/appbuilder/navbar.html b/superset/templates/appbuilder/navbar.html
+index 0ea2daec..f9fc3ab2 100644
+--- a/superset/templates/appbuilder/navbar.html
++++ b/superset/templates/appbuilder/navbar.html
+@@ -28,21 +28,6 @@
+       </ul>
+       <ul class="nav navbar-nav navbar-right">
+         {% include 'appbuilder/navbar_right.html' %}
+-        <li>
+-          <a href="/static/assets/version_info.json" title="Version info">
+-            <i class="fa fa-code-fork"></i> &nbsp;
+-          </a>
+-        </li>
+-        <li>
+-          <a href="https://github.com/apache/incubator-superset" title="Superset's Github">
+-            <i class="fa fa-github"></i> &nbsp;
+-          </a>
+-        </li>
+-        <li>
+-          <a href="https://superset.incubator.apache.org" title="Documentation">
+-            <i class="fa fa-book"></i> &nbsp;
+-          </a>
+-        </li>
+       </ul>
+     </div>
+   </div>
+diff --git a/superset/templates/superset/partials/_script_tag.html b/superset/templates/superset/partials/_script_tag.html
+index d8d6f6fd..328f7375 100644
+--- a/superset/templates/superset/partials/_script_tag.html
++++ b/superset/templates/superset/partials/_script_tag.html
+@@ -2,4 +2,16 @@
+   <script
+     src="{{ js_manifest(filename + '.js') }}">
+   </script>
++    <script>
++  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
++  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
++  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
++  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
++
++  {% if g.user.get_full_name %}
++  ga('set', 'userId', '{{g.user.get_full_name()}}');
++  {% endif %}
++  ga('create', 'UA-64695573-19', 'auto');
++  ga('send', 'pageview');
++  </script>
+ {% endblock %}
+diff --git a/superset/views/core.py b/superset/views/core.py
+index 57710bba..185acbb4 100755
+--- a/superset/views/core.py
++++ b/superset/views/core.py
+@@ -142,18 +142,22 @@ class DashboardFilter(SupersetFilter):
+         Slice = models.Slice  # noqa
+         Dash = models.Dashboard  # noqa
+         # TODO(bogdan): add `schema_access` support here
+-        datasource_perms = self.get_view_menus('datasource_access')
+-        slice_ids_qry = (
+-            db.session
+-            .query(Slice.id)
+-            .filter(Slice.perm.in_(datasource_perms))
+-        )
++        #datasource_perms = self.get_view_menus('datasource_access')
++        datasource_perms = self.get_view_menus('database_access')
++        database_perms = list(set([perm.split('.')[0] for perm in datasource_perms]))
++        # slice_ids_qry = (
++        #     db.session
++        #     .query(Slice.id)
++        #     .filter(Slice.perm.in_(datasource_perms))
++        # )
++        slices = db.session.query(Slice).all()
++        slice_ids = [slice_model.id for slice_model in slices if slice_model.perm.split('.')[0] in database_perms]
+         query = query.filter(
+             Dash.id.in_(
+                 db.session.query(Dash.id)
+                 .distinct()
+                 .join(Dash.slices)
+-                .filter(Slice.id.in_(slice_ids_qry))
++                .filter(Slice.id.in_(slice_ids))
+             )
+         )
+         return query
+-- 
+2.13.5 (Apple Git-94)
+
+
+From ed58b13c5090a111f0ce4bbed5d29191a5bfed96 Mon Sep 17 00:00:00 2001
+From: lichao <chaoli@mobvoi.com>
+Date: Mon, 23 Oct 2017 16:46:44 +0800
+Subject: [PATCH 2/2] minor update
+
+---
+ superset/assets/js_build.sh       | 2 +-
+ superset/assets/package.json      | 1 +
+ superset/assets/webpack.config.js | 1 +
+ 3 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/superset/assets/js_build.sh b/superset/assets/js_build.sh
+index 28065bde..c6079cbe 100755
+--- a/superset/assets/js_build.sh
++++ b/superset/assets/js_build.sh
+@@ -9,4 +9,4 @@ npm run lint
+ #npm run test
+ npm run build
+ #npm run cover
+-CODECLIMATE_REPO_TOKEN=ded6121d25d593a1c5aee9f26d85717b19df058f7408cef26910aa731aa7cc3f ./node_modules/.bin/codeclimate-test-reporter < ./coverage/lcov.info
++#CODECLIMATE_REPO_TOKEN=ded6121d25d593a1c5aee9f26d85717b19df058f7408cef26910aa731aa7cc3f ./node_modules/.bin/codeclimate-test-reporter < ./coverage/lcov.info
+diff --git a/superset/assets/package.json b/superset/assets/package.json
+index c34909c5..4e8f6b90 100644
+--- a/superset/assets/package.json
++++ b/superset/assets/package.json
+@@ -111,6 +111,7 @@
+     "clean-webpack-plugin": "^0.1.16",
+     "codeclimate-test-reporter": "^0.5.0",
+     "css-loader": "^0.28.0",
++    "empty-module": "0.0.2",
+     "enzyme": "^2.0.0",
+     "eslint": "^3.19.0",
+     "eslint-config-airbnb": "^15.0.1",
+diff --git a/superset/assets/webpack.config.js b/superset/assets/webpack.config.js
+index 952f7332..a1b9a925 100644
+--- a/superset/assets/webpack.config.js
++++ b/superset/assets/webpack.config.js
+@@ -114,6 +114,7 @@ const config = {
+       },
+     }),
+     new ExtractTextPlugin('[name].[chunkhash].css'),
++    new webpack.ContextReplacementPlugin(/\.\/locale$/, 'empty-module', false, /js$/),
+   ],
+ };
+ if (process.env.NODE_ENV === 'production') {
+-- 
+2.13.5 (Apple Git-94)
+

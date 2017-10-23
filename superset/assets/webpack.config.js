@@ -114,6 +114,7 @@ const config = {
       },
     }),
     new ExtractTextPlugin('[name].[chunkhash].css'),
+    new webpack.ContextReplacementPlugin(/\.\/locale$/, 'empty-module', false, /js$/),
   ],
 };
 if (process.env.NODE_ENV === 'production') {
